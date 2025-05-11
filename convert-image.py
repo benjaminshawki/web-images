@@ -25,12 +25,20 @@ Project Structure
 from __future__ import annotations
 import argparse
 import base64
+import datetime
 import os
 import sys
 import zipfile
 from pathlib import Path
 
 from PIL import Image
+
+# Try to import AVIF plugin
+try:
+    import pillow_avif
+    AVIF_SUPPORTED = True
+except ImportError:
+    AVIF_SUPPORTED = False
 
 
 def export_images(src: Path, out_dir: Path, favicon: bool = False, website: bool = False) -> list[Path]:
@@ -92,12 +100,15 @@ def export_images(src: Path, out_dir: Path, favicon: bool = False, website: bool
     svg_path.write_text(svg_content, encoding="utf-8")
 
     # --- AVIF (for website) ------------------------------------------------
-    if website:
-        try:
-            img.save(avif_path, format="AVIF", quality=85)
-        except (ValueError, AttributeError):
-            # Older Pillow builds may lack AVIF support
-            print("[warn] Pillow was built without AVIF; skipping image.avif", file=sys.stderr)
+    if website and avif_path:
+        if AVIF_SUPPORTED:
+            try:
+                img.save(avif_path, format="AVIF", quality=85)
+            except (ValueError, AttributeError, KeyError) as e:
+                print(f"[error] AVIF save failed: {e}; skipping image.avif", file=sys.stderr)
+                avif_path = None
+        else:
+            print("[warn] AVIF format not supported (pillow_avif not installed); skipping image.avif", file=sys.stderr)
             avif_path = None
 
     # --- Favicon generation ------------------------------------------------
@@ -134,23 +145,52 @@ def export_images(src: Path, out_dir: Path, favicon: bool = False, website: bool
 
     # --- ZIP bundle -------------------------------------------------------
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.write(png_path, arcname=png_path.name)
-        zf.write(jpg_path, arcname=jpg_path.name)
-        if webp_path:
-            zf.write(webp_path, arcname=webp_path.name)
-        if avif_path:
-            zf.write(avif_path, arcname=avif_path.name)
-        zf.writestr(svg_path.name, svg_content)  # write from memory
+        # Add a top-level directory in the ZIP with stem name
+        zip_dir = stem
 
-        # Add favicon files to zip if generated
-        for fav_path in favicon_paths:
-            if fav_path and fav_path.exists():
-                zf.write(fav_path, arcname=fav_path.name)
+        # Create a "standard" subdirectory for basic formats
+        zf.write(png_path, arcname=f"{zip_dir}/standard/{png_path.name}")
+        zf.write(jpg_path, arcname=f"{zip_dir}/standard/{jpg_path.name}")
+        zf.writestr(f"{zip_dir}/standard/{svg_path.name}", svg_content)  # write from memory
+
+        # Create a "web" subdirectory for web formats
+        if webp_path:
+            zf.write(webp_path, arcname=f"{zip_dir}/web/{webp_path.name}")
+        if avif_path:
+            zf.write(avif_path, arcname=f"{zip_dir}/web/{avif_path.name}")
+
+        # Add favicon files to a "favicon" subdirectory if generated
+        if favicon_paths:
+            for fav_path in favicon_paths:
+                if fav_path and fav_path.exists():
+                    zf.write(fav_path, arcname=f"{zip_dir}/favicon/{fav_path.name}")
+
+        # Add a README.txt with info about the conversions
+        readme_content = f"""Web Images Export for {stem}
+
+Generated on: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+
+Contents:
+- standard/ - Basic image formats (PNG, JPEG, SVG)
+- web/ - Web-optimized formats (WebP, AVIF)
+- favicon/ - Favicon variants (if requested)
+
+Original file: {src.name}
+"""
+        zf.writestr(f"{zip_dir}/README.txt", readme_content)
 
     all_paths = [p for p in (png_path, jpg_path, webp_path, avif_path, svg_path, zip_path) if p]
     all_paths.extend([p for p in favicon_paths if p])
 
     return all_paths
+
+
+def create_timestamped_directory(base_dir: Path) -> Path:
+    """Create a timestamped directory for this conversion run."""
+    timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    timestamped_dir = base_dir / timestamp
+    timestamped_dir.mkdir(parents=True, exist_ok=True)
+    return timestamped_dir
 
 
 def main() -> None:
@@ -177,23 +217,42 @@ def main() -> None:
     parser.add_argument(
         "--website",
         action="store_true",
-        help="Optimize for website usage (includes AVIF format)",
+        help="Optimize for website usage (attempts AVIF if supported)",
     )
     parser.add_argument(
         "--public",
         action="store_true",
         help="Output to public/ directory instead of dist/ (for website assets)",
     )
+    parser.add_argument(
+        "--no-timestamp",
+        action="store_true",
+        help="Disable timestamp subdirectory creation",
+    )
 
     args = parser.parse_args()
 
-    # If --public is used, override the output directory
+    # Determine base output directory
     if args.public:
-        out_dir = Path("public")
+        base_dir = Path("public")
     else:
-        out_dir = args.out_dir
+        base_dir = args.out_dir
 
-    out_dir = out_dir.expanduser().resolve()
+    base_dir = base_dir.expanduser().resolve()
+
+    # Create timestamped directory unless --no-timestamp is specified
+    if args.no_timestamp:
+        out_dir = base_dir
+    else:
+        out_dir = create_timestamped_directory(base_dir)
+        print(f"Creating output directory: {out_dir}")
+
+    # Create website-specific subdirectory if using website mode
+    if args.website and not args.no_timestamp:
+        # For website optimized images, create a web/ subdirectory
+        web_dir = out_dir / "web"
+        web_dir.mkdir(exist_ok=True)
+        out_dir = web_dir
 
     # Handle shell glob expansion or single file
     all_outputs = []

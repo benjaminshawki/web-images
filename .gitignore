@@ -3,10 +3,16 @@
 *.png
 *.svg
 *.webp
+*.avif
+*.ico
 *_web_images.zip
+favicon*.png
+apple-touch-icon.png
 
-# Ignore images directory
+# Ignore directories
 /images/
+/public/
+/temp_venv/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

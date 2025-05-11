@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
 """
-convert_image.py  –  Export a single source image to PNG, JPEG, WEBP and an
+convert-image.py  –  Export a single source image to PNG, JPEG, WEBP and an
 SVG wrapper, then bundle everything into a ZIP.
 
 Usage
 -----
-    python3 convert_image.py path/to/source.jpg
-    python3 convert_image.py path/to/source.png --out-dir ./dist
+    python3 convert-image.py path/to/source.jpg
+    python3 convert-image.py path/to/source.png --out-dir ./dist
+    python3 convert-image.py src/*.jpg --out-dir ./dist
 
 Dependencies
 ------------
     pip install pillow
+
+Project Structure
+----------------
+    src/     - Place source images here
+    dist/    - Converted images are saved here by default
 """
 
 from __future__ import annotations
@@ -87,27 +93,33 @@ def main() -> None:
     )
     parser.add_argument(
         "source",
-        type=Path,
-        help="Path to the source image (PNG, JPG, etc.)",
+        type=str,
+        nargs='+',
+        help="Path(s) to the source image(s) (PNG, JPG, etc.)",
     )
     parser.add_argument(
         "--out-dir",
         type=Path,
-        default=None,
-        help="Directory to place the converted files (defaults to source folder)",
+        default=Path("dist"),
+        help="Directory to place the converted files (defaults to 'dist/')",
     )
 
     args = parser.parse_args()
-    src = args.source.expanduser().resolve()
-    out_dir = (args.out_dir or src.parent).expanduser().resolve()
+    out_dir = args.out_dir.expanduser().resolve()
 
-    if not src.is_file():
-        parser.error(f"Source file not found: {src}")
+    # Handle shell glob expansion or single file
+    all_outputs = []
+    for src_path in args.source:
+        src = Path(src_path).expanduser().resolve()
+        if not src.is_file():
+            parser.error(f"Source file not found: {src}")
 
-    outputs = export_images(src, out_dir)
+        print(f"Converting: {src}")
+        outputs = export_images(src, out_dir)
+        all_outputs.extend(outputs)
 
-    print("✓ Export complete:")
-    for p in outputs:
+    print("\n✓ Export complete:")
+    for p in all_outputs:
         print("  ", p.relative_to(Path.cwd()))
 
 

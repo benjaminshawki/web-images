@@ -5,8 +5,8 @@
 *.webp
 *_web_images.zip
 
-# Except for source images in the src directory
-!/src/**
+# Ignore images directory
+/images/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

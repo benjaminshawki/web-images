@@ -14,7 +14,7 @@ A simple utility to convert images into web-optimized formats (PNG, JPEG, WebP, 
 
 ```
 web-images/
-├── src/          # Place source images here
+├── images/       # Place source images here (ignored by git)
 ├── dist/         # Converted images go here
 ├── convert-image.py  # Main script
 └── README.md
@@ -34,19 +34,19 @@ pip install pillow
 ### Single image:
 
 ```bash
-python3 convert-image.py src/image.jpg
+python3 convert-image.py images/image.jpg
 ```
 
 ### Multiple images:
 
 ```bash
-python3 convert-image.py src/*.jpg
+python3 convert-image.py images/*.jpg
 ```
 
 ### Custom output directory:
 
 ```bash
-python3 convert-image.py src/image.png --out-dir ./custom-output
+python3 convert-image.py images/image.png --out-dir ./custom-output
 ```
 
 ## Output

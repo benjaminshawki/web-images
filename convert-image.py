@@ -7,7 +7,7 @@ Usage
 -----
     python3 convert-image.py path/to/source.jpg
     python3 convert-image.py path/to/source.png --out-dir ./dist
-    python3 convert-image.py src/*.jpg --out-dir ./dist
+    python3 convert-image.py images/*.jpg --out-dir ./dist
 
 Dependencies
 ------------
@@ -15,7 +15,7 @@ Dependencies
 
 Project Structure
 ----------------
-    src/     - Place source images here
+    images/  - Place source images here (ignored by git)
     dist/    - Converted images are saved here by default
 """
 
